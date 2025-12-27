@@ -80,7 +80,7 @@ func main() {
 
 	app := fiber.New()
 
-	app.Get("/api/v1/crawl", func(c *fiber.Ctx) error {
+	app.Post("/api/v1/crawl", func(c *fiber.Ctx) error {
 
 		var req CrawlRequest
 
@@ -89,7 +89,7 @@ func main() {
 		dataFailedBody["data"] = nil
 		dataFailedBody["message"] = "Something went wrong"
 
-		if err := c.BodyParser(req); err != nil {
+		if err := c.BodyParser(&req); err != nil {
 			dataFailedBody["message"] = "Failed to parse body"
 			return c.Status(fiber.StatusBadRequest).JSON(dataFailedBody)
 		}
