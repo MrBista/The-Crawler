@@ -9,24 +9,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/IBM/sarama"
+	"github.com/MrBista/The-Crawler/internal/handler"
 	"github.com/MrBista/The-Crawler/internal/queue"
 )
-
-type ConsumerHandler struct{}
-
-func (h *ConsumerHandler) Setup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-
-func (h *ConsumerHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-
-func (h *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-
-	return nil
-}
 
 func main() {
 	fmt.Println("Hello Crawler")
@@ -53,9 +38,9 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for {
-			handler := ConsumerHandler{}
+			handler, _ := handler.NewConsumerCrawlerHandler()
 
-			if err := group.ConsumerGroup.Consume(ctx, []string{topic}, &handler); err != nil {
+			if err := group.ConsumerGroup.Consume(ctx, []string{topic}, handler); err != nil {
 				log.Printf("Error from consumer: %v", err)
 			}
 

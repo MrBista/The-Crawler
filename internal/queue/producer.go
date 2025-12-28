@@ -14,7 +14,7 @@ func NewProducer(brokers []string) (*Producer, error) {
 	log.Printf("[PRODUCER] starting to setup producer kafka")
 	config := sarama.NewConfig()
 
-	config.Producer.Return.Errors = true
+	config.Producer.Return.Successes = true
 
 	producer, err := sarama.NewSyncProducer(brokers, config)
 
