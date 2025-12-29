@@ -6,6 +6,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/MrBista/The-Crawler/internal/dto"
+	"github.com/MrBista/The-Crawler/internal/helper"
 )
 
 type ConsumerCrawlerHandler struct{}
@@ -34,6 +35,7 @@ func (c *ConsumerCrawlerHandler) ConsumeClaim(session sarama.ConsumerGroupSessio
 			continue
 		}
 
+		helper.ProcessCrawl(job)
 		session.MarkMessage(msg, "")
 	}
 	return nil

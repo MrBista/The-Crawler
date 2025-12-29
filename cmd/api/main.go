@@ -28,7 +28,7 @@ func main() {
 
 	defer producer.Close()
 
-	app.Post("/api/v1", func(c *fiber.Ctx) error {
+	app.Post("/api/v1/crawl", func(c *fiber.Ctx) error {
 		var reqBody dto.CrawlRequest
 
 		if err := c.BodyParser(&reqBody); err != nil {

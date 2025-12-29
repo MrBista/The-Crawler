@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/MrBista/The-Crawler/internal/dto"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
 )
 
-func processCrawl(job dto.CrawlJob) {
+func ProcessCrawl(job dto.CrawlJob) {
 	log.Printf("[Worker] starting to crawl for: %s", job.URL)
 
 	if !strings.HasPrefix(job.URL, "http") {
@@ -86,46 +84,26 @@ func processCrawl(job dto.CrawlJob) {
 	// }
 
 	// generatePDF(html, job.ID)
+
+	/*
+		if job.Depth > 1 {
+			doc.Find("a").Each(func(i int, s *goquery.Selection) {
+				href, exists := s.Attr("href")
+				if exists {
+					childJob := dto.CrawlJob{
+						ID:    uuid.New().String(),
+						URL:   fixUrl(href, job.URL),
+						Depth: job.Depth - 1,
+					}
+
+					// !TODO use method handler
+
+				}
+			})
+		}
+	*/
 }
 
-func generatePDF(html, nameFile string) error {
-	log.Printf("[PDF] begin to unduh pdf")
-	pdfg, err := wkhtmltopdf.NewPDFGenerator()
-	if err != nil {
-		return err
-	}
-
-	page := wkhtmltopdf.NewPageReader(strings.NewReader(html))
-	page.EnableLocalFileAccess.Set(true)
-
-	pdfg.AddPage(page)
-	pdfg.PageSize.Set(wkhtmltopdf.PageSizeA4)
-	pdfg.Dpi.Set(300)
-
-	err = pdfg.Create()
-	if err != nil {
-		log.Printf("[PDF] Failed to create pdf reader")
-		return err
-	}
-
-	log.Printf("[PDF] success create pdf with name %s", nameFile)
-	return pdfg.WriteFile(nameFile + ".pdf")
-}
-
-func saveRawHTml(id string, htmlContent []byte) (string, error) {
-	err := os.Mkdir("crawled_data", 0755)
-
-	if err != nil {
-		return "", err
-	}
-
-	filename := fmt.Sprintf("crawled_data/%s.html", id)
-
-	err = os.WriteFile(filename, htmlContent, 0644)
-
-	if err != nil {
-		return "", err
-	}
-
-	return filename, err
+func fixUrl(hrefUrl, parentUrl string) string {
+	return ""
 }
