@@ -154,18 +154,31 @@ func (h *CrawlHandler) handleRecursiveLinks(doc *goquery.Document, parentJob mod
 			return
 		}
 		visitedLinks[absoluteURl] = true
+
+		if absoluteURl == parentJob.Url {
+			return
+		}
+
+		newDepth := parentJob.Depth - 1
+
+		if newDepth < 0 {
+			return
+		}
+
 		uidChild := uuid.New().String()
 		childJob := models.CrawlJob{
 			ID:        uidChild,
 			ParentId:  parentJob.ID,
 			Url:       absoluteURl,
-			Depth:     parentJob.Depth - 1,
+			Depth:     newDepth,
 			Selectors: parentJob.Selectors,
 		}
 
 		payload, _ := json.Marshal(childJob)
 
 		partion, offset, err := h.producer.PublishMessage(h.kafkaTopic, uidChild, string(payload))
+
+		log.Printf("[Queue] Enqueue Child: %s | Depth: %d -> %d", childJob.Url, parentJob.Depth, childJob.Depth)
 
 		if err != nil {
 			log.Printf("[ERROR] failed to publish message")
