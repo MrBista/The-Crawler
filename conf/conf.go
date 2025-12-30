@@ -8,16 +8,16 @@ import (
 )
 
 type Config struct {
-	DBConfig DBConfig
+	DBConfig DBConfig `mapstructure:"db"`
 }
 
 type DBConfig struct {
-	Host     string
-	Password string
-	User     string
-	DBName   string
-	Port     string
-	SSLMode  string
+	Host     string `mapstructure:"host"`
+	Password string `mapstructure:"password"`
+	User     string `mapstructure:"user"`
+	DBName   string `mapstructure:"db_name"`
+	Port     string `mapstructure:"port"`
+	SSLMode  string `mapstructure:"ssl_mode"`
 }
 
 func LoadConfig() (*Config, error) {

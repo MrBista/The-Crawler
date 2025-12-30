@@ -26,6 +26,10 @@ type CrawlPage struct {
 	CreatedAt  time.Time
 }
 
+func (c *CrawlJob) TableName() string {
+	return "crawl_page"
+}
+
 type JSONB map[string]string
 
 func (j JSONB) Value() (driver.Value, error) {

@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 
-	"github.com/MrBista/The-Crawler/internal/dto"
+	"github.com/MrBista/The-Crawler/internal/models"
 	"github.com/MrBista/The-Crawler/internal/queue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -29,7 +28,7 @@ func main() {
 	defer producer.Close()
 
 	app.Post("/api/v1/crawl", func(c *fiber.Ctx) error {
-		var reqBody dto.CrawlRequest
+		var reqBody models.CrawlJob
 
 		if err := c.BodyParser(&reqBody); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -38,7 +37,7 @@ func main() {
 			})
 		}
 
-		if reqBody.URl == "" {
+		if reqBody.Url == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"data":    nil,
 				"message": "url body is required",
@@ -46,11 +45,11 @@ func main() {
 		}
 
 		jobId := uuid.New().String()
-		job := dto.CrawlJob{
+		job := models.CrawlJob{
 			ID:        jobId,
-			URL:       reqBody.URl,
+			Url:       reqBody.Url,
 			Depth:     reqBody.Depth,
-			CreatedAt: time.Now(),
+			Selectors: reqBody.Selectors,
 		}
 
 		jobMarshal, err := json.Marshal(job)

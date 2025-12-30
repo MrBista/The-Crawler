@@ -63,8 +63,23 @@ services:
     networks:
       - kafka-network
 
+  postgress:
+    image: postgres:13
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: userdb
+      POSTGRES_PASSWORD: dbpassword
+      POSTGRES_DB: crawlerdb
+    ports:
+      - "7000:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - kafka-network
 volumes:
   kafka-data:
+    driver: local
+  pgdata:
     driver: local
 
 networks:

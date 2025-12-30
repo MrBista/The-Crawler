@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/IBM/sarama"
-	"github.com/MrBista/The-Crawler/internal/dto"
-	"github.com/MrBista/The-Crawler/internal/helper"
 	"github.com/MrBista/The-Crawler/internal/models"
 	"github.com/MrBista/The-Crawler/internal/queue"
 	"github.com/MrBista/The-Crawler/internal/repository"
@@ -91,7 +88,7 @@ func (h *CrawlHandler) ProcessCrawl(job models.CrawlJob) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(rawHtml))
 
 	if err != nil {
-		log.Printf("[PROCESS_CRAWL_ERROR] failed to save file")
+		log.Printf("[PROCESS_CRAWL_ERROR] failed to get doc")
 		return
 	}
 
@@ -135,13 +132,14 @@ func (h *CrawlHandler) ProcessCrawl(job models.CrawlJob) {
 	} else {
 		log.Printf("[PROCESS_CRAWL] success to save page crawl")
 	}
-
+	log.Printf("[NEXT] depth value %s", job.Depth)
 	if job.Depth > 0 {
 		h.handleRecursiveLinks(doc, job)
 	}
 }
 
 func (h *CrawlHandler) handleRecursiveLinks(doc *goquery.Document, parentJob models.CrawlJob) {
+	log.Printf("[CRAWL_RECURSIVE] START TO RECURSIVE TASK LINK")
 	visitedLinks := make(map[string]bool)
 
 	doc.Find("a").Each(func(i int, s *goquery.Selection) {
@@ -151,8 +149,8 @@ func (h *CrawlHandler) handleRecursiveLinks(doc *goquery.Document, parentJob mod
 		}
 
 		absoluteURl := resolveURL(parentJob.Url, href)
-
 		if absoluteURl == "" || visitedLinks[absoluteURl] || !strings.HasPrefix(absoluteURl, "http") {
+			log.Printf("[ERROR_RECURSIVE] failed to recursive links")
 			return
 		}
 		visitedLinks[absoluteURl] = true
@@ -187,36 +185,4 @@ func resolveURL(baseUrl, href string) string {
 		return ""
 	}
 	return base.ResolveReference(ref).String()
-}
-
-type ConsumerCrawlerHandler struct{}
-
-func NewConsumerCrawlerHandler() (*ConsumerCrawlerHandler, error) {
-	return &ConsumerCrawlerHandler{}, nil
-}
-
-func (c *ConsumerCrawlerHandler) Setup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-
-func (c *ConsumerCrawlerHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-func (c *ConsumerCrawlerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	for msg := range claim.Messages() {
-		log.Printf("Message claim: value = %s, timestamp = %v, topic = %s", msg.Value, msg.Timestamp, msg.Topic)
-
-		var job dto.CrawlJob
-
-		err := json.Unmarshal(msg.Value, &job)
-		if err != nil {
-			log.Printf("Error when parshing JSON : %v", err)
-			session.MarkMessage(msg, "")
-			continue
-		}
-
-		helper.ProcessCrawl(job)
-		session.MarkMessage(msg, "")
-	}
-	return nil
 }

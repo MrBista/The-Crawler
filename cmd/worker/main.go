@@ -9,17 +9,44 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/MrBista/The-Crawler/conf"
 	"github.com/MrBista/The-Crawler/internal/handler"
 	"github.com/MrBista/The-Crawler/internal/queue"
+	"github.com/MrBista/The-Crawler/internal/repository"
+	"github.com/MrBista/The-Crawler/internal/storage"
 )
 
 func main() {
 	fmt.Println("Hello Crawler")
 
+	envConv, err := conf.LoadConfig()
+
+	if err != nil {
+		log.Panicf("failed to load config %v", err)
+	}
+
+	dbConnect, _ := conf.Connect(envConv.DBConfig)
+
+	crawlRepository := repository.NewCrawlRepositoryImpl(dbConnect)
+
+	fileStore := storage.NewLocalStorage("./storage/crawl_data/files")
+
 	brokers := []string{"localhost:9092"}
 	topic := "crawler-get"
+	groupConsumerId := "crawler-worker-group"
+	producer, err := queue.NewProducer(brokers)
 
-	group, err := queue.NewConsumerGroup(brokers, "crawler-worker-group", topic)
+	if err != nil {
+		log.Panicf("Error to start producer brokers %v with message %v", brokers, err)
+	}
+
+	defer producer.Close()
+
+	crawlHandler := handler.NewCrawlHandler(crawlRepository, fileStore, producer, topic)
+
+	consumerCrawlHandler, err := handler.NewConsumerCrawlerHandler(crawlHandler)
+
+	group, err := queue.NewConsumerGroup(brokers, groupConsumerId, topic)
 	if err != nil {
 		log.Panicf("Error creating consumer group client: %v", err)
 	}
@@ -38,9 +65,8 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for {
-			handler, _ := handler.NewConsumerCrawlerHandler()
 
-			if err := group.ConsumerGroup.Consume(ctx, []string{topic}, handler); err != nil {
+			if err := group.ConsumerGroup.Consume(ctx, []string{topic}, consumerCrawlHandler); err != nil {
 				log.Printf("Error from consumer: %v", err)
 			}
 
