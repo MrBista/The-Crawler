@@ -7,11 +7,11 @@ import (
 )
 
 type CrawlJob struct {
-	ID       int      `json:"id"`
-	ParentId int      `json:"parent_id"`
-	Url      string   `json:"url"`
-	Depth    int      `json:"depth"`
-	Selector []string `json:"selector"`
+	ID        string   `json:"id"`
+	ParentId  string   `json:"parent_id"`
+	Url       string   `json:"url"`
+	Depth     int      `json:"depth"`
+	Selectors []string `json:"selectors"`
 }
 
 type CrawlPage struct {

@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -11,18 +13,21 @@ import (
 	"github.com/MrBista/The-Crawler/internal/dto"
 	"github.com/MrBista/The-Crawler/internal/helper"
 	"github.com/MrBista/The-Crawler/internal/models"
+	"github.com/MrBista/The-Crawler/internal/queue"
 	"github.com/MrBista/The-Crawler/internal/repository"
 	"github.com/MrBista/The-Crawler/internal/storage"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/google/uuid"
 )
 
 type CrawlHandler struct {
 	repo       repository.CrawlRepository
 	storage    storage.Storage
-	producer   sarama.SyncProducer
+	producer   *queue.Producer
 	kafkaTopic string
 }
 
-func NewCrawlHandler(repo repository.CrawlRepository, storage storage.Storage, producer sarama.SyncProducer, topic string) *CrawlHandler {
+func NewCrawlHandler(repo repository.CrawlRepository, storage storage.Storage, producer *queue.Producer, topic string) *CrawlHandler {
 	return &CrawlHandler{
 		repo:       repo,
 		storage:    storage,
@@ -67,6 +72,121 @@ func (h *CrawlHandler) ProcessCrawl(job models.CrawlJob) {
 		log.Printf("[Error] Non-200 Status Code: %d", res.StatusCode)
 		return
 	}
+
+	var bodyBytes bytes.Buffer
+	_, err = bodyBytes.ReadFrom(res.Body)
+	if err != nil {
+		log.Printf("[Error] Failed to read boy: %v", err)
+		return
+	}
+
+	rawHtml := bodyBytes.Bytes()
+
+	savePath, err := h.storage.Save(job.ID, rawHtml)
+	if err != nil {
+		log.Printf("[PROCESS_CRAWL_ERROR] failed to save file")
+		return
+	}
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(rawHtml))
+
+	if err != nil {
+		log.Printf("[PROCESS_CRAWL_ERROR] failed to save file")
+		return
+	}
+
+	pageTitle := strings.TrimSpace(doc.Find("title").Text())
+	extractedData := make(models.JSONB)
+
+	if len(job.Selectors) > 0 {
+		for _, selector := range job.Selectors {
+			text := strings.TrimSpace(doc.Find(selector).Text())
+			if text != "" {
+				extractedData[selector] = text
+			}
+		}
+	} else {
+		desc, exists := doc.Find("meta[name='description']").Attr("content")
+		if exists {
+			extractedData["meta_description"] = desc
+		}
+	}
+
+	var parentIdPtr *string
+
+	if job.ParentId != "" {
+		parentIdPtr = &job.ParentId
+	}
+
+	pageRecord := models.CrawlPage{
+		ID:         job.ID,
+		ParentID:   parentIdPtr,
+		URL:        job.Url,
+		Title:      pageTitle,
+		FilePath:   savePath,
+		ParsedData: extractedData,
+		Status:     "completed",
+		DepthLevel: job.Depth,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := h.repo.SavePage(&pageRecord); err != nil {
+		log.Printf("[PROCESS_CRAWL_ERROR] failed to save page crawled")
+	} else {
+		log.Printf("[PROCESS_CRAWL] success to save page crawl")
+	}
+
+	if job.Depth > 0 {
+		h.handleRecursiveLinks(doc, job)
+	}
+}
+
+func (h *CrawlHandler) handleRecursiveLinks(doc *goquery.Document, parentJob models.CrawlJob) {
+	visitedLinks := make(map[string]bool)
+
+	doc.Find("a").Each(func(i int, s *goquery.Selection) {
+		href, exists := s.Attr("href")
+		if !exists {
+			return
+		}
+
+		absoluteURl := resolveURL(parentJob.Url, href)
+
+		if absoluteURl == "" || visitedLinks[absoluteURl] || !strings.HasPrefix(absoluteURl, "http") {
+			return
+		}
+		visitedLinks[absoluteURl] = true
+		uidChild := uuid.New().String()
+		childJob := models.CrawlJob{
+			ID:        uidChild,
+			ParentId:  parentJob.ID,
+			Url:       absoluteURl,
+			Depth:     parentJob.Depth - 1,
+			Selectors: parentJob.Selectors,
+		}
+
+		payload, _ := json.Marshal(childJob)
+
+		partion, offset, err := h.producer.PublishMessage(h.kafkaTopic, uidChild, string(payload))
+
+		if err != nil {
+			log.Printf("[ERROR] failed to publish message")
+		}
+
+		log.Printf("[CHILD_RECURSIVE] success to send to partion (%s) and offset (%s)", partion, offset)
+	})
+}
+
+func resolveURL(baseUrl, href string) string {
+	base, err := url.Parse(baseUrl)
+	if err != nil {
+		return ""
+	}
+	ref, err := url.Parse(href)
+	if err != nil {
+		return ""
+	}
+	return base.ResolveReference(ref).String()
 }
 
 type ConsumerCrawlerHandler struct{}
